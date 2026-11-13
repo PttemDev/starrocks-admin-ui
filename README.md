@@ -2,15 +2,121 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A modern React dashboard for managing StarRocks clusters. Provides multi-environment SQL querying, schema browsing, ingestion management (routine load + batch load), query monitoring, and cluster health overview.
+A modern React dashboard for managing StarRocks clusters. Provides multi-environment SQL querying, schema browsing, ingestion management (routine load, batch load, scheduled tasks and pipes), materialized views, query monitoring, and cluster health overview.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/query-console-dark.png">
+  <img alt="Query console: SQL editor with schema tree, toolbar and streamed results in a grid" src="docs/screenshots/query-console.png">
+</picture>
 
 > [!IMPORTANT]
 > **This repository is only the front end.** The UI depends on the backend, [starrocks-api](https://github.com/PttemDev/starrocks-api), and does not work without it. Sign-in, queries and every other feature call that API. Start the API first (see the [Quick start](#quick-start)).
 
+## Features
+
+All screenshots show fictional demo data.
+
+### Query Console
+
+- Monaco-based SQL editor with keyword + schema autocomplete
+- Schema tree sidebar; right-click a table for `SELECT` templates or to open it in **Tables**
+- Resizable editor area and per-environment query tabs (each environment keeps its own tab list)
+- Streaming NDJSON results in AG Grid, with a summary row (distinct count, sum, mean) per column
+- Cell and row actions: copy value, copy row as JSON, copy as SQL literal, pin columns, JSON viewer
+- Export results as CSV, Excel or JSON, or write them to object storage (S3/GCS) as Parquet, ORC or CSV (`INSERT INTO FILES`)
+- Query plan viewer: `EXPLAIN`, or `EXPLAIN ANALYZE` for a runtime profile
+- Auto `LIMIT` for `SELECT` queries that have none, so a stray query can't freeze the browser
+- Session variables (`SET key=value`) applied per connection before each query, useful for optimizer hints like `enable_topn_opt` and `query_timeout`
+- Query history with duration, row count and status; built-in StarRocks query and JSON function guides
+
+### Tables
+
+- Browse one database or all of them: object type (table, view, materialized view), rows, data size, average row size, created/updated time, comment
+- Table detail: the `CREATE` statement (copy it to recreate the table in another environment), columns, and partitions (add or drop)
+- Add column, collect optimizer statistics (`ANALYZE TABLE`), drop table with confirmation
+- Create database, and a create table wizard (Duplicate, Primary or Aggregate key, partitioning, distribution)
+
+<table>
+  <tr>
+    <td width="50%"><img alt="Tables page listing tables, views and materialized views across all databases" src="docs/screenshots/tables.png"></td>
+    <td width="50%"><img alt="Table detail with CREATE statement, columns and partitions" src="docs/screenshots/table-detail.png"></td>
+  </tr>
+</table>
+
+### Ingestion
+
+- **Routine Load:** Kafka jobs across all databases, filterable by database, table and state, with consumer lag, last message time, loaded/error rows and task count. Create, pause, resume and stop jobs.
+- **Routine load detail:** per-partition consumed and latest offsets with lag, throughput statistics and job properties. Change settings in place (the backend runs `PAUSE → ALTER → RESUME` and rolls back a failed `ALTER`), or copy the SQL to re-create the job.
+- **Batch Load:** S3/MinIO, Google Cloud Storage, HDFS, Table-to-Table (`INSERT INTO ... SELECT`) and file upload (HTTP Stream Load)
+- **Batch load wizard** in five steps: Source → Target & Format → Preview & Schema → Options → Review. Preview the files and infer their schema with `FILES()`, then create the target table from it. Run the load once, on a schedule, or continuously as a pipe.
+- Job monitoring with progress bars, state and type tags, ETL info and cancel actions
+
+<table>
+  <tr>
+    <td width="50%"><img alt="Routine load jobs with lag, loaded rows and actions" src="docs/screenshots/ingestion-routine-load.png"></td>
+    <td width="50%"><img alt="Routine load detail with per-partition offsets and lag" src="docs/screenshots/routine-load-detail.png"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img alt="Batch load jobs with progress and state" src="docs/screenshots/ingestion-batch-load.png"></td>
+    <td width="50%"><img alt="Batch load wizard, source selection step" src="docs/screenshots/batch-load-wizard.png"></td>
+  </tr>
+</table>
+
+### Automation
+
+StarRocks-native recurring ingestion, with no external scheduler:
+
+- **Scheduled tasks** (`SUBMIT TASK ... SCHEDULE`): view and edit the SQL, see run history, run now, drop
+- **Pipes** (continuous, deduplicated file ingestion): list loaded files, suspend/resume, edit auto-ingest and poll interval, retry errored files, drop
+- One list for both, filtered by all, active (running/skipped) or finished (success/failed)
+
+![Automation page listing scheduled tasks and pipes](docs/screenshots/automation.png)
+
+### Materialized Views
+
+- Refresh type, active state, last refresh status and time, row count
+- View the definition, refresh now (async), create, drop
+
+![Materialized views with refresh status](docs/screenshots/materialized-views.png)
+
+### Routines
+
+- Every routine load job in the environment on one page, with counts per state
+- Flags jobs that need attention: paused by the system, or reporting task errors such as an unreachable broker
+
+![Routine jobs overview with state summary cards](docs/screenshots/routines.png)
+
+### Dashboard
+
+- **Cluster:** total, alive and dead nodes, storage used/total, plus backend and frontend node tables (capacity, disk and memory usage, tablets, running queries, version, heartbeat)
+- Admin actions on frontend nodes: register a node as `FOLLOWER`, or drop and re-add it
+- **Query Monitor:** running queries with CPU time, memory, scanned rows/bytes and progress; kill a query; slow query log
+
+<table>
+  <tr>
+    <td width="50%"><img alt="Dashboard cluster overview with node health" src="docs/screenshots/dashboard.png"></td>
+    <td width="50%"><img alt="Query monitor listing running queries" src="docs/screenshots/query-monitor.png"></td>
+  </tr>
+</table>
+
+### Cluster
+
+- Read-only, filterable views of system variables, FE configuration, catalogs (internal and external) and resource groups
+
+![Cluster page showing system variables](docs/screenshots/cluster.png)
+
+### General
+
+- Multiple environments with a switcher; environments marked read-only are labelled in the UI
+- Login with username/password; the token is persisted in localStorage
+- Role-based UI: admins see write actions, viewers get read-only pages
+- Light, dark or system theme
+- Auto-refresh (off, 5s, 10s, 30s or 1m) on every list and monitoring page
+
 ## Tech Stack
 
 - **React 19** + **TypeScript 6**
-- **Vite 5** (dev server + build)
+- **Vite 8** (dev server + build)
 - **Ant Design 6** (UI components)
 - **Monaco Editor** (SQL editor with autocomplete)
 - **AG Grid** (query result tables)
@@ -79,46 +185,6 @@ npm run preview  # preview the production build locally
 
 By default the UI calls `/api` on the same origin. Set `VITE_API_URL` at build time to call a backend on another origin (the backend must then allow your UI origin in `server.cors_origins`). `VITE_*` values are baked into the public bundle, so never put secrets in them.
 
-## Features
-
-### Query Console
-- Monaco-based SQL editor with keyword + schema autocomplete
-- Resizable editor area (drag to resize)
-- Per-environment query tabs (each environment keeps its own tab list)
-- Streaming NDJSON results displayed in AG Grid
-- Export results as CSV, Excel, or JSON
-- Session variables (SET key=value) applied per-connection before query execution — useful for optimizer hints like `enable_topn_opt`, `query_timeout`
-- Query history sidebar with duration, row count, status
-
-### Schema Browser
-- Database and table explorer
-- Column details with types and comments
-- Create table wizard with key type, partitioning, distribution
-- Add column dialog
-- Drop table with confirmation
-
-### Ingestion
-- **Routine Load:** View, create, pause, resume, stop Kafka routine load jobs
-- **Batch Load:** S3/HDFS Broker Load, Table-to-Table (INSERT INTO SELECT), HTTP Stream Load (file upload)
-- Batch load wizard with 4-step flow: Source -> Target & Format -> Options -> Review
-- Job monitoring with progress bars, state tags, cancel actions
-
-### Dashboard
-- Cluster health overview (FE/BE nodes)
-- Node status, capacity, tablet counts
-- Routine load job summary
-
-### Query Monitoring
-- Active queries with CPU, memory, scan bytes
-- Process list
-- Slow query log
-- Kill query capability
-
-### Authentication
-- Login with username/password
-- Role-based UI (admin sees write actions, viewer sees read-only)
-- Token persisted in localStorage
-
 ## Project Structure
 
 ```
@@ -126,18 +192,24 @@ starrocks-admin-ui/
 ├── src/
 │   ├── api/           # API client functions and types
 │   ├── components/
-│   │   ├── Dashboard/     # Cluster health overview
-│   │   ├── Ingestion/     # Routine load + batch load management
-│   │   ├── Layout/        # App shell, sidebar, header, env switcher
-│   │   ├── Login/         # Authentication page
-│   │   ├── Queries/       # Query monitoring (active, slow, processes)
-│   │   ├── QueryConsole/  # SQL editor, results, tabs, history
-│   │   ├── Tables/        # Schema browser, create table, add column
-│   │   └── shared/        # Reusable components (AutoRefresh, RoutineLoadTable)
-│   ├── hooks/         # Custom hooks (useStreamingQuery)
-│   ├── store/         # Zustand stores (auth, env, query tabs, history)
+│   │   ├── Automation/        # Scheduled tasks + pipes
+│   │   ├── Cluster/           # Variables, FE config, catalogs, resource groups
+│   │   ├── Dashboard/         # Cluster health overview + query monitor tab
+│   │   ├── Ingestion/         # Routine load + batch load management and wizards
+│   │   ├── Layout/            # App shell, top menu, env switcher, theme toggle
+│   │   ├── Login/             # Authentication page
+│   │   ├── MaterializedViews/ # Materialized view list, create, refresh
+│   │   ├── Queries/           # Running queries, slow query log, kill query
+│   │   ├── QueryConsole/      # SQL editor, results, tabs, history, explain, export
+│   │   ├── Routines/          # All routine load jobs across databases
+│   │   ├── Scheduler/         # Scheduled task detail / edit modal
+│   │   ├── Tables/            # Table browser, create table, add column, partitions
+│   │   └── shared/            # Reusable components (AutoRefresh, RoutineLoadTable)
+│   ├── hooks/         # Custom hooks (useStreamingQuery, useExport, useTheme)
+│   ├── store/         # Zustand stores (auth, env, query tabs, history, schema, settings)
 │   ├── styles/        # Global CSS
 │   └── utils/         # SQL completion, helpers
+├── docs/screenshots/  # README screenshots
 ├── nginx.conf         # Production nginx config (used in Docker)
 ├── vite.config.ts     # Vite dev server + proxy config
 └── Dockerfile
